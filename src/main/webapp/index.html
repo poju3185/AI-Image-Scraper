@@ -1,0 +1,257 @@
+<html>
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.min.js"></script>
+
+</head>
+<body>
+<div class="container">
+    <h1 class="mt-4 mb-3">Eulerity Take-Home Challenge</h1>
+
+
+    Here's an updated version of the "How It Works" section, translated and revised based on the provided information.
+    The update includes a clear step-by-step description of the process, incorporating the new features and user actions
+    you've outlined:
+
+    html
+    Copy code
+    <div class="card">
+        <div class="card-header">
+            <h2>How It Works</h2>
+        </div>
+        <div class="card-body">
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">Enter a URL and the maximum number of images (default is 10).
+                    Press the submit button to initiate a crawl of the specified site and its related links to fetch the
+                    designated number of images.
+                </li>
+                <li class="list-group-item">Images fetched from each website are displayed separately. Click on the link
+                    to view the original web page of the image.
+                </li>
+                <li class="list-group-item">Logo images are highlighted with a red border.</li>
+                <li class="list-group-item">During the crawl of each website, there is a random delay of 1 to 5 seconds</li>
+                <li class="list-group-item">Select 'Use AI Detection' to apply OCR on logos, whereas other images will
+                    undergo object recognition.
+                </li>
+                <li class="list-group-item">If objects are detected within an image, you can click on that image to see
+                    the locations of the identified objects.
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="content mt-4">
+        <div class="input-group mb-3">
+            <input type="text" class="form-control" placeholder="Enter URL here" name="url" aria-label="URL"
+                   style="flex-grow: 2;">
+            <input type="number" class="form-control" placeholder="Max images" name="maxImages" aria-label="Max Images"
+                   min="1" style="max-width: 140px;">
+            <div class="input-group-text">
+                <input class="form-check-input mt-0" type="checkbox" value="" id="useAIDetection"
+                       aria-label="Use AI Object Recognition">
+                <label class="form-check-label ms-2" for="useAIDetection">
+                    Use AI Detection
+                </label>
+            </div>
+            <button class="btn btn-primary" type="button">Submit!</button>
+        </div>
+        <div class="output">
+            <div class="row results"></div>
+        </div>
+    </div>
+    <div class="modal fade" id="imageModal">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="imageModalLabel">Annotated Image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <img id="modalImage" src="" class="img-fluid" alt="Annotated Image">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    var resultList = document.querySelector('.results');
+    var urlInput = document.querySelector('input[name=url]')
+    var maxImages = document.querySelector('input[name=maxImages]')
+    var useAI = document.getElementById('useAIDetection')
+
+
+    apiCallBack = function (xhr, callback) {
+        if (xhr.readyState == XMLHttpRequest.DONE) {
+            if (xhr.status != 200) {
+                let message = xhr.status + ":" + xhr.statusText + ":"
+                    + xhr.responseText;
+                alert(message);
+                throw 'API call returned bad code: ' + xhr.status;
+            }
+            let response = xhr.responseText ? JSON.parse(xhr.responseText)
+                : null;
+            if (callback) {
+                callback(response);
+            }
+        }
+    }
+
+    updateList = function (response) {
+        resultList.innerHTML = '';
+
+        // Iterate over each page result
+        for (let i = 0; i < response.length; i++) {
+            const pageResult = response[i];
+
+            // Create card container for the results of this page
+            const pageCard = document.createElement("div");
+            pageCard.className = "card mb-3";
+            pageCard.style.width = '100%';
+
+            // Create card header
+            const pageCardHeader = document.createElement("div");
+            pageCardHeader.className = "card-header";
+            const link = document.createElement("a");
+            link.href = pageResult.pageUrl; // Set the hyperlink target to the page's URL
+            link.textContent = pageResult.pageUrl; // The displayed text is also the URL
+            link.target = "_blank"; // Open link in a new window or tab
+            pageCardHeader.appendChild(link);
+            pageCard.appendChild(pageCardHeader);
+
+            // Create a row container for image cards
+            const rowDiv = document.createElement("div");
+            rowDiv.className = "row";
+
+            // Iterate through all image results on the page
+            for (let j = 0; j < pageResult.crawlerResults.length; j++) {
+                const result = pageResult.crawlerResults[j];
+                // Create grid column
+                const colDiv = document.createElement("div");
+                colDiv.className = "col-md-4 mb-4"; // Bootstrap responsive grid and margin class
+
+                // Create card container
+                const card = document.createElement("div");
+                card.className = "card";
+                card.style.backgroundColor = '#E2E3E6';
+
+
+                // Create image element
+                switch (result.resultType) {
+                    case 'IMAGE_RESULT':
+                        const img = document.createElement("img");
+                        img.className = "card-img-top";
+                        img.src = result.imgUrl;
+                        img.alt = "Loaded image";
+                        card.appendChild(img);
+                        if (result.classes && result.classes.length > 0) {
+                            img.style.cursor = "pointer";
+                            img.addEventListener('click', function () {
+                                sendAnnotateRequest(result.imgUrl, result.detections); // Add click event
+                            });
+                            const cardBody = document.createElement("div");
+                            cardBody.className = "card-body";
+                            const classesText = document.createElement("p");
+                            classesText.className = "card-text";
+                            classesText.textContent = "Object Detected: " + result.classes.join(", ");
+                            cardBody.appendChild(classesText);
+                            card.appendChild(cardBody);
+                        }
+                        break;
+                    case 'LOGO_RESULT':
+                        if (result.isSvg) {
+                            card.innerHTML = result.imageData; // Directly embed SVG data
+                        } else {
+                            const img = document.createElement("img");
+                            img.className = "card-img-top";
+                            img.src = result.imageData;
+                            img.alt = "Loaded image";
+                            card.appendChild(img);
+                        }
+                        if (result.ocrResult) {
+                            const cardBody = document.createElement("div");
+                            cardBody.className = "card-body";
+                            const classesText = document.createElement("p");
+                            classesText.className = "card-text";
+                            classesText.textContent = "ORC Detected: " + result.ocrResult;
+                            cardBody.appendChild(classesText);
+                            card.appendChild(cardBody);
+                        }
+                        card.style.border = "5px solid #f00"; // Red border for logo results
+                        break;
+                    default:
+                        break;
+                }
+
+                colDiv.appendChild(card);
+
+                rowDiv.appendChild(colDiv);
+            }
+
+            pageCard.appendChild(rowDiv);
+
+            resultList.appendChild(pageCard);
+        }
+    }
+
+
+    makeApiCall = function (url, method, obj, callback) {
+        let xhr = new XMLHttpRequest();
+        xhr.open(method, url);
+        xhr.onreadystatechange = apiCallBack.bind(null, xhr, callback);
+        xhr.send(obj ? obj instanceof FormData || obj.constructor == String ? obj : JSON.stringify(obj) : null);
+    }
+
+    document.querySelector('button').addEventListener("click", function (event) {
+        event.preventDefault();
+        this.disabled = true;
+        const requestUrl = '/main?url=' + urlInput.value +
+            '&maxImages=' + maxImages.value +
+            '&useAI=' + useAI.checked;
+        makeApiCall(requestUrl, 'POST', null, function (response) {
+            updateList(response);
+            this.disabled = false;
+        }.bind(this));
+    });
+
+    function sendAnnotateRequest(url, detections) {
+        // Construct request payload
+        const data = JSON.stringify({
+            url: url,
+            detections: detections
+        });
+
+        // Create XMLHttpRequest object to send a POST request
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/annotate', true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.responseType = 'blob';
+
+        xhr.onload = function () {
+            if (xhr.status === 200) {
+                displayImage(xhr.response);
+            } else {
+                console.error('Error from server:', xhr.status, xhr.statusText);
+            }
+        };
+
+        xhr.send(data);
+    }
+
+    function displayImage(blob) {
+        const url = URL.createObjectURL(blob);
+        const modalImage = document.getElementById('modalImage');
+        modalImage.src = url;
+
+        // Display the modal
+        const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+        modal.show();
+
+        modalImage.onload = function () {
+            // Revoke Blob URL to free resources after image has loaded
+            URL.revokeObjectURL(modalImage.src);
+        };
+    }
+</script>
+</body>
+
+</html>
