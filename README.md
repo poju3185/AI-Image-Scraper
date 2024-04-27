@@ -30,4 +30,7 @@ To run the project, use the following command to start the server:
 
 >`mvn clean test package jetty:run`
 
-Now, if you enter `localhost:8080` into your browser, you should see the `index.html` welcome page! 
+Now, if you enter `localhost:8080` into your browser, you should see the `index.html` welcome page!  
+
+### Preview
+![Screenshot](Screenshot.png) 
